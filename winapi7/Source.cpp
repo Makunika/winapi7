@@ -4,128 +4,11 @@
 #include <windowsx.h>
 #include <string>
 
+#include "resource.h"
+
 // --- Описание функции главного окна
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-// --- Глобальные переменные
-HINSTANCE hInst; 		// Дескриптор экземпляра приложения
-WCHAR ClassName[] = L"Window"; 		// Название класса окна
-WCHAR AppTitle[] = L"Application Win32"; 	// Заголовок главного окна
-UINT IdTimer = 0;
-
-int WINAPI WinMain(HINSTANCE hInstance,
-	// Дескриптор экземпляра приложения
-	HINSTANCE hPrevInstance, // В Win32 всегда равен NULL
-	LPSTR lpCmdLine,
-	// Указатель на командную строку. Он // позволяет
-	// приложению получать данные из командной строки.
-	int nCmdShow
-	// Определяет, как приложение первоначально 
-	// отображается на дисплее: пиктограммой
-	// (nCmdShow = SW_SHOWMINNOACTIVE) 
-	// или в виде открытого окна 					//(nCmdShow = SW_SHOWNORMAL).
-)
-{
-	WNDCLASS wc; 	// Структура для информации о классе окна
-	HWND hWnd; 	// Дескриптор главного окна приложения
-	MSG msg; 	// Структура для хранения сообщения
-// Сохраняем дескриптор экземпляра приложения в глобальной
-// переменной, чтобы при необходимости воспользоваться им в
-// функции окна.
-	hInst = hInstance;
-
-	// --- Проверяем, было ли приложение запущено ранее.
-	// Воспользуемся функцией FindWindow, которая позволяет
-	// найти окно верхнего 
-	// уровня по имени класса или по заголовку окна:
-	// HWND FindWindow(LPCTSTR lpClassName,
-	// LPCTSTRlpWindowName);
-	// Через параметр lpClassName передается указатель на
-	// текстовую строку, в которую необходимо записать имя
-	// класса искомого окна. На базе одного и того же класса 
-	// можно создать несколько окон. Если необходимо найти 
-	// окно с заданным заголовком, то имя заголовка следует
-	// передать через параметр lpWindowName. Если же подойдет 
-	// любое окно, то параметр lpWindowName может иметь
-	// значение NULL.
-	if ((hWnd = FindWindow(ClassName, NULL)) != NULL)
-	{
-		// Пользователь может не помнить, какие приложения уже
-		// запущены, а какие нет. Когда он запускает приложение, 
-		// то ожидает, что на экране появится его главное окно.
-		// Поэтому, если приложение было запущено ранее,
-		// целесообразно активизировать и выдвинуть на передний
-		// план его главное окно. Это именно то, к чему приготовился
-		// пользователь.
-		if (IsIconic(hWnd)) ShowWindow(hWnd, SW_RESTORE);
-		SetForegroundWindow(hWnd);
-
-		// Найдена работающая копия - работа новой копии
-		// прекращается.
-		return FALSE;
-	}
-	srand(time(NULL));
-	// --- Работающая копия не найдена - функция WinMain
-	// приступает к инициализации. Заполнение структуры
-	// WNDCLASS для регистрации класса окна.
-	memset(&wc, 0, sizeof(wc));
-	wc.lpszClassName = ClassName;		// Имя класса окон
-	wc.lpfnWndProc = (WNDPROC)WndProc;
-	// Адрес оконной функции
-	wc.style = CS_HREDRAW | CS_VREDRAW;	// Стиль класса 
-	wc.hInstance = hInstance;		// Экземпляр приложения
-	wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-	// Пиктограмма для окон
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	// Курсор мыши для окон
-	wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-	// Кисть для окон
-	wc.lpszMenuName = NULL;			// Ресурс меню окон
-	wc.cbClsExtra = 0;			// Дополнительная память
-	wc.cbWndExtra = 0;			// Дополнительная память
-	// Pегистрация класса окна.
-	RegisterClass(&wc);
-
-	// Создаем главное окно приложения.
-	hWnd = CreateWindow(
-		ClassName, 			// Имя класса окон
-		AppTitle,			// Заголовок окна 
-		WS_OVERLAPPEDWINDOW, 		// Стиль окна
-		CW_USEDEFAULT,			// X-координаты 
-		CW_USEDEFAULT,			// Y-координаты 
-		CW_USEDEFAULT,			// Ширина окна
-		CW_USEDEFAULT,			// Высота окна
-		NULL,			// Дескриптор окна-родителя
-		NULL,			// Дескриптор меню окна
-		hInst,		// Дескриптор экземпляра приложения
-		NULL);		// Дополнительная информация
-	if (!hWnd)
-	{
-		// Окно не создано, выдаем предупреждение.
-		MessageBox(NULL,
-			L"Create: error", AppTitle, MB_OK | MB_ICONSTOP);
-		return FALSE;
-	}
-
-	// Отображаем окно.
-	ShowWindow(hWnd, nCmdShow);
-
-	// Обновляем содержимое клиентской области окна.
-	UpdateWindow(hWnd);
-
-
-	// Запускаем цикл обработки очереди сообщений.
-	// Функция GetMessage получает сообщение из очереди, 
-	// выдает false при выборке из очереди сообщения WM_QUIT
-	while (GetMessage(&msg, NULL, 0, 0))
-	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-
-	return msg.wParam;
-}
-
+BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 struct TREE
 {
@@ -134,6 +17,129 @@ struct TREE
 	int h; // высота основного ствола дерева (размер)
 	COLORREF color; // цвет изображения
 };
+
+
+// --- Глобальные переменные
+HINSTANCE hInst; 		// Дескриптор экземпляра приложения
+WCHAR ClassName[] = L"Window"; 		// Название класса окна
+WCHAR AppTitle[] = L"Application Win32"; 	// Заголовок главного окна
+UINT IdTimer = 0;
+HWND hWndMain;
+HWND hDlg = NULL;
+
+int dTimer = 10000;
+
+TREE tr {};
+
+void init(HWND hWnd)
+{
+	RECT rect;
+	GetClientRect(hWnd, &rect);
+	tr.f = 0;
+	tr.h = rand() % 20 + 20;
+	tr.x = rand() % ((rect.right - 6 * tr.h) - 6 * tr.h) + 6 * tr.h;
+	tr.y = rand() % (rect.bottom - 6 * tr.h) + 6 * tr.h;
+	tr.color = RGB(rand() % 255, rand() % 255, rand() % 255);
+}
+
+void init(HWND hWnd, int f, int h, int x, int y, COLORREF color)
+{
+	RECT rect;
+	GetClientRect(hWnd, &rect);
+	tr.f = f;
+	tr.h = h;
+	if (x < 6 * tr.h)
+	{
+		x = 6 * tr.h;
+	}
+	else if (x > rect.right - 6 * tr.h)
+	{
+		x = rect.right - 6 * tr.h;
+	}
+
+	tr.x = x;
+
+	if (y < 6 * tr.h)
+	{
+		y = 6 * tr.h;
+	}
+	else if (y > rect.bottom)
+	{
+		y = rect.bottom;
+	}
+	
+	tr.y = y;
+	tr.color = color;
+}
+
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+	WNDCLASS wc;
+	MSG msg;
+	hInst = hInstance;
+	
+	if ((hWndMain = FindWindow(ClassName, NULL)) != NULL)
+	{
+		if (IsIconic(hWndMain)) ShowWindow(hWndMain, SW_RESTORE);
+		SetForegroundWindow(hWndMain);
+		return FALSE;
+	}
+	srand(time(NULL));
+	
+	memset(&wc, 0, sizeof(wc));
+	wc.lpszClassName = ClassName;
+	wc.lpfnWndProc = (WNDPROC)WndProc;
+	wc.style = CS_HREDRAW | CS_VREDRAW;
+	wc.hInstance = hInstance;
+	wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
+	wc.lpszMenuName = MAKEINTRESOURCE(IDR_MENU);
+	wc.cbClsExtra = 0;
+	wc.cbWndExtra = 0;
+	RegisterClass(&wc);
+
+	hWndMain = CreateWindow(
+		ClassName, 			// Имя класса окон
+		AppTitle,			// Заголовок окна 
+		WS_OVERLAPPEDWINDOW | WS_VISIBLE, 		// Стиль окна
+		CW_USEDEFAULT,			// X-координаты 
+		CW_USEDEFAULT,			// Y-координаты 
+		CW_USEDEFAULT,			// Ширина окна
+		CW_USEDEFAULT,			// Высота окна
+		NULL,			// Дескриптор окна-родителя
+		NULL,			// Дескриптор меню окна
+		hInst,		// Дескриптор экземпляра приложения
+		NULL);		// Дополнительная информация
+	
+	if (!hWndMain)
+	{
+		MessageBox(NULL,
+			L"Create: error", AppTitle, MB_OK | MB_ICONSTOP);
+		return FALSE;
+	}
+	ShowWindow(hWndMain, nCmdShow);
+	
+	init(hWndMain);
+	
+	UpdateWindow(hWndMain);
+
+	
+	
+	SetTimer(hWndMain, IdTimer, dTimer, (TIMERPROC)NULL);
+	
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		if (hDlg == NULL || !IsDialogMessage(hDlg, &msg))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+	}
+
+	return msg.wParam;
+}
 
 #define PI 3.14156
 
@@ -224,22 +230,6 @@ void ugolok(HDC hDC, int* X[], int* Y[], int* UG[], int* N, int dl, int ug0, int
 	}
 }
 
-TREE tr{};
-
-void init(HWND hWnd)
-{
-
-	RECT rect;
-	GetClientRect(hWnd, &rect);
-
-	tr.f = 0;
-	tr.h = rand() % 20 + 20;
-
-	tr.x = rand() % ((rect.right - 6 * tr.h) - 6 * tr.h) + 6 * tr.h;
-	tr.y = rand() % (rect.bottom - 6 * tr.h) + 6 * tr.h;
-	tr.color = RGB(rand() % 255, rand() % 255, rand() % 255);
-}
-
 // --- Функция окна
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -247,7 +237,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_PAINT:
 	{
-		init(hWnd);
 		HDC hDC;
 		PAINTSTRUCT ps;
 		RECT r;
@@ -262,7 +251,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_LBUTTONDOWN:
 	{
+		//InvalidateRect(hWnd, NULL, true);
+		break;
+	}
+	case WM_TIMER:
+	{
 		InvalidateRect(hWnd, NULL, true);
+		break;
+	}
+	case WM_COMMAND:
+	{
+		switch (LOWORD(wParam))
+		{
+			case IDM_CONF:
+			{
+				hDlg = CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG1), hWnd, DlgProc);
+				ShowWindow(hDlg, SW_SHOW);
+				InvalidateRect(hWnd, NULL, true);
+			}
+		}
 		break;
 	}
 	case WM_DESTROY:
@@ -273,4 +280,46 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	default: return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
 	return 0l;
+}
+
+BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_INITDIALOG:
+		SetDlgItemText(hWnd, IDC_EDIT_F, std::to_wstring(tr.f).c_str());
+		SetDlgItemText(hWnd, IDC_EDIT_X, std::to_wstring(tr.x).c_str());
+		SetDlgItemText(hWnd, IDC_EDIT_Y, std::to_wstring(tr.y).c_str());
+		SetDlgItemText(hWnd, IDC_EDIT_H, std::to_wstring(tr.h).c_str());
+		return TRUE;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case IDOK:
+		{
+			std::wstring h = L"";
+			GetDlgItemText(hWnd, IDC_EDIT_H, (LPWSTR)h.c_str(), 100);
+			std::wstring x = L"";
+			GetDlgItemText(hWnd, IDC_EDIT_X, (LPWSTR)x.c_str(), 100);
+			std::wstring y = L"";
+			GetDlgItemText(hWnd, IDC_EDIT_Y, (LPWSTR)y.c_str(), 100);
+			std::wstring f = L"";
+			GetDlgItemText(hWnd, IDC_EDIT_F, (LPWSTR)f.c_str(), 100);
+			init(hWndMain, std::stoi(f), std::stoi(h), std::stoi(x), std::stoi(y), RGB(255, 255, 255));
+			EndDialog(hWnd, LOWORD(wParam));
+			return TRUE;
+		}
+		case IDCANCEL:
+			EndDialog(hWnd, LOWORD(wParam));
+			return TRUE;
+		}
+		case IDC_BUTTON_COLOR:
+		{
+			
+			return TRUE;
+		}
+		break;
+	}
+	return FALSE;
 }
