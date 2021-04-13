@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <string>
+#include <commctrl.h>
 
 #include "resource.h"
 
@@ -42,7 +43,7 @@ void init(HWND hWnd)
 	tr.color = RGB(rand() % 255, rand() % 255, rand() % 255);
 }
 
-void init(HWND hWnd, int f, int h, int x, int y, COLORREF color)
+void init(HWND hWnd, int f, int h, int x, int y)
 {
 	RECT rect;
 	GetClientRect(hWnd, &rect);
@@ -69,7 +70,6 @@ void init(HWND hWnd, int f, int h, int x, int y, COLORREF color)
 	}
 	
 	tr.y = y;
-	tr.color = color;
 }
 
 
@@ -125,8 +125,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	UpdateWindow(hWndMain);
 
-	
-	
 	SetTimer(hWndMain, IdTimer, dTimer, (TIMERPROC)NULL);
 	
 	while (GetMessage(&msg, NULL, 0, 0))
@@ -265,9 +263,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			case IDM_CONF:
 			{
-				hDlg = CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG1), hWnd, DlgProc);
-				ShowWindow(hDlg, SW_SHOW);
-				InvalidateRect(hWnd, NULL, true);
+				if (DialogBox(hInst, MAKEINTRESOURCE(IDD_DIALOG1), hWnd, DlgProc))
+				{
+					InvalidateRect(hWnd, NULL, true);
+				}
 			}
 		}
 		break;
@@ -282,17 +281,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0l;
 }
 
+UINT APIENTRY MyCCHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM lParam )
+{
+	static UINT uWM_ChooseColorOK = 0U;
+
+	switch (uiMsg)
+	{
+	case WM_INITDIALOG:
+		uWM_ChooseColorOK = RegisterWindowMessage(COLOROKSTRING);
+		break;
+	default:
+		if (uWM_ChooseColorOK && uiMsg == uWM_ChooseColorOK)
+		{
+			COLORREF crResColor = ((LPCHOOSECOLOR)lParam)->rgbResult;
+			if (GetRValue(crResColor) >= 150)
+			{
+				MessageBox(NULL, L"Красного больше 150 не должно быть", L"Ошибка", MB_OK);
+				return TRUE;
+			}
+		}
+	}
+
+	return FALSE;
+}
+
+
+
 BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
 	case WM_INITDIALOG:
+	{
+		HWND hwndButton = CreateWindow(
+			L"BUTTON",  // Predefined class; Unicode assumed 
+			L"OK",      // Button text 
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+			10,         // x position 
+			10,         // y position 
+			100,        // Button width
+			100,        // Button height
+			hWnd,     // Parent window
+			NULL,       // No menu.
+			(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+			NULL);
 		SetDlgItemText(hWnd, IDC_EDIT_F, std::to_wstring(tr.f).c_str());
 		SetDlgItemText(hWnd, IDC_EDIT_X, std::to_wstring(tr.x).c_str());
 		SetDlgItemText(hWnd, IDC_EDIT_Y, std::to_wstring(tr.y).c_str());
 		SetDlgItemText(hWnd, IDC_EDIT_H, std::to_wstring(tr.h).c_str());
+		SetDlgItemText(hWnd, IDC_EDIT_TIMER, std::to_wstring(dTimer).c_str());
+		KillTimer(hWndMain, IdTimer);
 		return TRUE;
-
+	}
+	case WM_CLOSE:
+	{
+		EndDialog(hWnd, 0);
+		return TRUE;
+	}
 	case WM_COMMAND:
 		switch (LOWORD(wParam))
 		{
@@ -306,20 +351,43 @@ BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			GetDlgItemText(hWnd, IDC_EDIT_Y, (LPWSTR)y.c_str(), 100);
 			std::wstring f = L"";
 			GetDlgItemText(hWnd, IDC_EDIT_F, (LPWSTR)f.c_str(), 100);
-			init(hWndMain, std::stoi(f), std::stoi(h), std::stoi(x), std::stoi(y), RGB(255, 255, 255));
-			EndDialog(hWnd, LOWORD(wParam));
+			std::wstring timer = L"";
+			GetDlgItemText(hWnd, IDC_EDIT_TIMER, (LPWSTR)timer.c_str(), 100);
+			dTimer = std::stoi(timer);
+			init(hWndMain, std::stoi(f), std::stoi(h), std::stoi(x), std::stoi(y));
+			SetTimer(hWndMain, IdTimer, dTimer, (TIMERPROC)NULL);
+			EndDialog(hWnd, TRUE);
 			return TRUE;
 		}
 		case IDCANCEL:
-			EndDialog(hWnd, LOWORD(wParam));
+		{
+			EndDialog(hWnd, 0);
 			return TRUE;
 		}
 		case IDC_BUTTON_COLOR:
 		{
-			
+			CHOOSECOLOR cc;
+			static COLORREF acrCustClr[16];
+			ZeroMemory(&cc, sizeof(cc));
+			cc.lStructSize = sizeof(cc);
+			cc.hwndOwner = hWnd;
+			cc.lpCustColors = (LPDWORD)acrCustClr;
+			cc.rgbResult = tr.color;
+			cc.Flags = CC_FULLOPEN | CC_RGBINIT | CC_ENABLEHOOK;
+			cc.lpfnHook = MyCCHookProc;
+
+			if (ChooseColor(&cc))
+			{
+				tr.color = cc.rgbResult;
+			}
 			return TRUE;
 		}
-		break;
+		default:
+		{
+			break;
+		}
+		}
+		
 	}
 	return FALSE;
 }
