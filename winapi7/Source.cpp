@@ -3,21 +3,13 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <string>
-#include <commctrl.h>
 
 #include "resource.h"
 
 // --- Описание функции главного окна
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK WndPopUpProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-struct TREE
-{
-	int f;	// определяет угол наклона (вид изображения)
-	int x, y; //координаты корня дерева (местоположение)
-	int h; // высота основного ствола дерева (размер)
-	COLORREF color; // цвет изображения
-};
 
 
 // --- Глобальные переменные
@@ -28,54 +20,10 @@ UINT IdTimer = 0;
 HWND hWndMain;
 HWND hDlg = NULL;
 
-int dTimer = 10000;
-
-TREE tr {};
-
-void init(HWND hWnd)
-{
-	RECT rect;
-	GetClientRect(hWnd, &rect);
-	tr.f = 0;
-	tr.h = rand() % 20 + 20;
-	tr.x = rand() % ((rect.right - 6 * tr.h) - 6 * tr.h) + 6 * tr.h;
-	tr.y = rand() % (rect.bottom - 6 * tr.h) + 6 * tr.h;
-	tr.color = RGB(rand() % 255, rand() % 255, rand() % 255);
-}
-
-void init(HWND hWnd, int f, int h, int x, int y)
-{
-	RECT rect;
-	GetClientRect(hWnd, &rect);
-	tr.f = f;
-	tr.h = h;
-	if (x < 6 * tr.h)
-	{
-		x = 6 * tr.h;
-	}
-	else if (x > rect.right - 6 * tr.h)
-	{
-		x = rect.right - 6 * tr.h;
-	}
-
-	tr.x = x;
-
-	if (y < 6 * tr.h)
-	{
-		y = 6 * tr.h;
-	}
-	else if (y > rect.bottom)
-	{
-		y = rect.bottom;
-	}
-	
-	tr.y = y;
-}
-
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-	WNDCLASS wc;
+	WNDCLASS wc, wcPopup;
 	MSG msg;
 	hInst = hInstance;
 	
@@ -100,6 +48,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	wc.cbWndExtra = 0;
 	RegisterClass(&wc);
 
+	memset(&wcPopup, 0, sizeof(wcPopup));
+	wcPopup.lpszClassName = L"popup";
+	wcPopup.lpfnWndProc = (WNDPROC)WndPopUpProc;
+	wcPopup.style = CS_HREDRAW | CS_VREDRAW;
+	wcPopup.hInstance = hInstance;
+	wcPopup.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+	wcPopup.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wcPopup.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
+	wcPopup.cbClsExtra = 0;
+	wcPopup.cbWndExtra = 0;
+	RegisterClass(&wcPopup);
+
+	
 	hWndMain = CreateWindow(
 		ClassName, 			// Имя класса окон
 		AppTitle,			// Заголовок окна 
@@ -121,11 +82,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	ShowWindow(hWndMain, nCmdShow);
 	
-	init(hWndMain);
-	
 	UpdateWindow(hWndMain);
-
-	SetTimer(hWndMain, IdTimer, dTimer, (TIMERPROC)NULL);
 	
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
@@ -139,134 +96,107 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return msg.wParam;
 }
 
-#define PI 3.14156
+HWND hbtnOk, hbtnOpenFile;
+HWND hListBox;
 
-void ugolok(HDC hDC, int* X[], int* Y[], int* UG[],
-	int* N, int dl, int ug0, int ug,
-	int* X0, int* Y0, int* i); // рабочая функция
-
-void tree(HDC hDC, struct TREE tr) // функция вывода дерева
+LRESULT CALLBACK WndPopUpProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	int x0, y0, *X, *Y, ug, i, k, *UG, ug0, m, n, kvet, hvet, N;
-	i = 0;
-	k = 0;
-	m = 1;
-	ug0 = 28 + tr.f;
-	// инициализации
-	N = (k + 1);
-	// текущее число элементов массивов - хранилищ координат и углов
-	X = (int*)malloc(N * sizeof(int));
-	Y = (int*)malloc(N * sizeof(int));
-	UG = (int*)malloc(N * sizeof(int));
-
-	// создание объектов GDI (функция CreatePen)
-	HPEN hpen = CreatePen(PS_SOLID, 1, tr.color);
-
-	// установка атрибутов контекста отображения (функция SelectObject)
-	HGDIOBJ oldPen = SelectObject(hDC, hpen);
-
-	srand(time(NULL));
-
-	// ствол дерева
-	ug = UG[k] = ug0 * 3.2;
-	x0 = X[k] = tr.x; 	y0 = Y[k] = tr.y;
-	ugolok(hDC, &X, &Y, &UG, &N, tr.h, ug0, ug, &x0, &y0, &i);
-
-	do // рисуем само дерево
+	switch (msg)
 	{
-		hvet = rand() % 2 + 2; //параметр уменьшения ветки
-		if (hvet == 2) kvet = 128 * 2;
-		else kvet = 64 * 2;
-		if (tr.h > hvet) tr.h -= hvet;
-		else break;
-		for (n = 1; n <= m; n++)
-		{
-			k++;
-			ug = UG[k] + tr.f;
-			x0 = X[k]; y0 = Y[k];
-			ugolok(hDC, &X, &Y, &UG, &N, tr.h, ug0, ug, &x0, &y0, &i);
-		}
-		m = m * 2;
-	} while (m <= kvet);
-
-	// восстановление атрибутов контекста отображения
-	SelectObject(hDC, oldPen);
-
-	// удаление созданых объектов GDI
-	DeleteObject(hpen);
-
-	free(X);
-	free(Y);
-	free(UG);
-}
-
-// вывод веток, выходящих из вершины
-void ugolok(HDC hDC, int* X[], int* Y[], int* UG[], int* N, int dl, int ug0, int ug, int* X0, int* Y0, int* i)
-{
-	int x0 = *X0, y0 = *Y0, x1, y1, w; double grad = PI / 180.;
-	if (*i == 0) w = 1; else w = 2;
-	for (int a = 1; a <= w; a++)
+	case WM_CREATE:
 	{
-		(*i)++;
-		if ((*i) + 1 > *N)
-			// необходимо выделить дополнительную память
-		{
-			*N = (*i) + 1;
-			*X = (int*)realloc(*X, (*N) * sizeof(int));
-			*Y = (int*)realloc(*Y, (*N) * sizeof(int));
-			*UG = (int*)realloc(*UG, (*N) * sizeof(int));
-		}
-		(*UG)[*i] = ug + ug0;
-		(*X)[*i] = x1 = x0 + cos(ug * grad) * dl;
-		(*Y)[*i] = y1 = y0 - sin(ug * grad) * dl;
-
-		// вывод очередной линии от (x0,y0) до (x1,y1)
-		// (функции MoveToEx и LineTo)
-		MoveToEx(hDC, x0, y0, NULL);
-		LineTo(hDC, x1, y1);\
-		ug -= ug0 * 2 + (rand() % 26 - 15);
+		hbtnOk = CreateWindow(L"button", L"Ок",
+			WS_CHILD | WS_VISIBLE | WS_BORDER,
+			10, 370, 120, 30, hWnd, 0, hInst, NULL);
+		ShowWindow(hbtnOk, SW_SHOWNORMAL);
+		hbtnOpenFile = CreateWindow(L"button", L"Открыть файл",
+			WS_CHILD | WS_VISIBLE | WS_BORDER,
+			140, 370, 120, 30, hWnd, 0, hInst, NULL);
+		ShowWindow(hbtnOpenFile, SW_SHOWNORMAL);
+		hListBox = CreateWindow(L"listbox", NULL,
+			WS_CHILD | WS_VISIBLE | LBS_STANDARD |
+			LBS_WANTKEYBOARDINPUT | LBS_DISABLENOSCROLL,
+			10, 10, 810, 350,
+			hWnd, 0, hInst, NULL);
+		ShowWindow(hListBox, SW_SHOWNORMAL);
 	}
+	case WM_COMMAND:
+	{
+		if (lParam == (LPARAM)hbtnOk)
+		{
+			DestroyWindow(hWnd);
+		}
+		else if (lParam == (LPARAM)hbtnOpenFile)
+		{
+			WCHAR filesAll[1024];
+			WCHAR filesTitle[1024];
+			
+			OPENFILENAME ofn;
+			ZeroMemory(&ofn, sizeof(ofn));
+			ofn.hwndOwner = hWnd;
+			ofn.lpstrFilter = NULL;
+			ofn.lpstrTitle = L"Выбери файлики";
+			ofn.lpstrFile = filesAll;
+			ofn.lpstrFile[0] = '\0';
+			ofn.lpstrFileTitle = filesTitle;
+			ofn.lpstrFileTitle[0] = '\0';
+			ofn.nMaxFileTitle = sizeof(filesTitle);
+			ofn.nMaxFile = sizeof(filesAll);
+			ofn.lpstrInitialDir = NULL;
+			ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+			ofn.lStructSize = sizeof(ofn);
+			if (GetOpenFileName(&ofn) == TRUE)
+			{
+				wchar_t* ptr = ofn.lpstrFile;
+				ptr[ofn.nFileOffset - 1] = 0;
+				std::wstring dir(ptr);
+				ptr += ofn.nFileOffset;
+				while (*ptr)
+				{
+					SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)(L"Папка: " + dir + L", файл: " + std::wstring(ptr)).c_str());
+					ptr += (lstrlenW(ptr) + 1);
+				}
+			
+			}
+		}
+		break;
+	}
+	default: return DefWindowProc(hWnd, msg, wParam, lParam);
+	}
+	return 0l;
 }
 
-// --- Функция окна
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
-	case WM_PAINT:
-	{
-		HDC hDC;
-		PAINTSTRUCT ps;
-		RECT r;
-		GetClientRect(hWnd, &r);
-		hDC = BeginPaint(hWnd, &ps);
-
-		
-		tree(hDC, tr);
-			
-		EndPaint(hWnd, &ps);
-		break;
-	}
-	case WM_LBUTTONDOWN:
-	{
-		//InvalidateRect(hWnd, NULL, true);
-		break;
-	}
-	case WM_TIMER:
-	{
-		InvalidateRect(hWnd, NULL, true);
-		break;
-	}
 	case WM_COMMAND:
 	{
 		switch (LOWORD(wParam))
 		{
-			case IDM_CONF:
+			case IDM_OPENFILE:
 			{
-				if (DialogBox(hInst, MAKEINTRESOURCE(IDD_DIALOG1), hWnd, DlgProc))
+				HWND hWndPopUp = CreateWindow(
+					L"popup", 			// Имя класса окон
+					AppTitle,			// Заголовок окна 
+					WS_POPUPWINDOW | WS_VISIBLE | WS_CAPTION, 		// Стиль окна
+					CW_USEDEFAULT,			// X-координаты 
+					CW_USEDEFAULT,			// Y-координаты 
+					850,			// Ширина окна
+					450,			// Высота окна
+					hWnd,			// Дескриптор окна-родителя
+					NULL,			// Дескриптор меню окна
+					hInst,		// Дескриптор экземпляра приложения
+					NULL);		// Дополнительная информация
+
+				if (!hWndPopUp)
 				{
-					InvalidateRect(hWnd, NULL, true);
+					MessageBox(NULL,
+						L"Create: error", AppTitle, MB_OK | MB_ICONSTOP);
+					return FALSE;
 				}
+				ShowWindow(hWndPopUp, SW_NORMAL);
+				UpdateWindow(hWndPopUp);
 			}
 		}
 		break;
@@ -296,7 +226,7 @@ UINT APIENTRY MyCCHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM lParam )
 			COLORREF crResColor = ((LPCHOOSECOLOR)lParam)->rgbResult;
 			if (GetRValue(crResColor) >= 150)
 			{
-				MessageBox(NULL, L"Красного больше 150 не должно быть", L"Ошибка", MB_OK);
+				MessageBox(hdlg, L"Красного больше 150 не должно быть", L"Ошибка", MB_OK);
 				return TRUE;
 			}
 		}
@@ -313,24 +243,6 @@ BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_INITDIALOG:
 	{
-		HWND hwndButton = CreateWindow(
-			L"BUTTON",  // Predefined class; Unicode assumed 
-			L"OK",      // Button text 
-			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
-			10,         // x position 
-			10,         // y position 
-			100,        // Button width
-			100,        // Button height
-			hWnd,     // Parent window
-			NULL,       // No menu.
-			(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-			NULL);
-		SetDlgItemText(hWnd, IDC_EDIT_F, std::to_wstring(tr.f).c_str());
-		SetDlgItemText(hWnd, IDC_EDIT_X, std::to_wstring(tr.x).c_str());
-		SetDlgItemText(hWnd, IDC_EDIT_Y, std::to_wstring(tr.y).c_str());
-		SetDlgItemText(hWnd, IDC_EDIT_H, std::to_wstring(tr.h).c_str());
-		SetDlgItemText(hWnd, IDC_EDIT_TIMER, std::to_wstring(dTimer).c_str());
-		KillTimer(hWndMain, IdTimer);
 		return TRUE;
 	}
 	case WM_CLOSE:
@@ -343,25 +255,14 @@ BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 		case IDOK:
 		{
-			std::wstring h = L"";
-			GetDlgItemText(hWnd, IDC_EDIT_H, (LPWSTR)h.c_str(), 100);
-			std::wstring x = L"";
-			GetDlgItemText(hWnd, IDC_EDIT_X, (LPWSTR)x.c_str(), 100);
-			std::wstring y = L"";
-			GetDlgItemText(hWnd, IDC_EDIT_Y, (LPWSTR)y.c_str(), 100);
-			std::wstring f = L"";
-			GetDlgItemText(hWnd, IDC_EDIT_F, (LPWSTR)f.c_str(), 100);
-			std::wstring timer = L"";
-			GetDlgItemText(hWnd, IDC_EDIT_TIMER, (LPWSTR)timer.c_str(), 100);
-			dTimer = std::stoi(timer);
-			init(hWndMain, std::stoi(f), std::stoi(h), std::stoi(x), std::stoi(y));
-			SetTimer(hWndMain, IdTimer, dTimer, (TIMERPROC)NULL);
-			EndDialog(hWnd, TRUE);
+			
+			EndDialog(hWnd, IDOK);
+			
 			return TRUE;
 		}
 		case IDCANCEL:
 		{
-			EndDialog(hWnd, 0);
+			EndDialog(hWnd, IDCANCEL);
 			return TRUE;
 		}
 		case IDC_BUTTON_COLOR:
@@ -372,13 +273,11 @@ BOOL CALLBACK DlgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			cc.lStructSize = sizeof(cc);
 			cc.hwndOwner = hWnd;
 			cc.lpCustColors = (LPDWORD)acrCustClr;
-			cc.rgbResult = tr.color;
 			cc.Flags = CC_FULLOPEN | CC_RGBINIT | CC_ENABLEHOOK;
-			cc.lpfnHook = MyCCHookProc;
+			cc.lpfnHook = (LPCCHOOKPROC) MyCCHookProc;
 
 			if (ChooseColor(&cc))
 			{
-				tr.color = cc.rgbResult;
 			}
 			return TRUE;
 		}
